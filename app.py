@@ -1,10 +1,11 @@
 from flask import Flask, request, abort
-from linebot import LineBotApi, WebhookHandler
-from linebot.exceptions import InvalidSignatureError
-from linebot.models import (
-    MessageEvent, TextMessage, TextSendMessage,
-    TemplateSendMessage, ButtonsTemplate, URIAction, MessageAction
+from linebot.v3 import WebhookHandler
+from linebot.v3.exceptions import InvalidSignatureError
+from linebot.v3.messaging import (
+    Configuration, ApiClient, MessagingApi, ReplyMessageRequest,
+    TextMessage, TemplateMessage, ButtonsTemplate, URIAction, MessageAction
 )
+from linebot.v3.webhooks import MessageEvent, TextMessageContent
 import requests
 from bs4 import BeautifulSoup
 import random
@@ -29,8 +30,8 @@ if not CHANNEL_ACCESS_TOKEN or not CHANNEL_SECRET:
     print("❌ Missing Line Bot credentials in .env file")
     exit(1)
 
-# Initialize Line Bot API v2 (stable)
-line_bot_api = LineBotApi(CHANNEL_ACCESS_TOKEN)
+# Initialize Line Bot API v3
+configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(CHANNEL_SECRET)
 
 print("✅ Dynamic Article Bot loaded successfully!")
@@ -287,7 +288,7 @@ def callback():
 
     return 'OK'
 
-@handler.add(MessageEvent, message=TextMessage)
+@handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
     """Handle incoming text messages"""
     user_message = event.message.text.lower().strip()
@@ -311,16 +312,24 @@ def handle_message(event):
         send_article_recommendation(event, preferred_source)
     else:
         # Default response
-        reply_message = TextSendMessage(
-            text="👋 Hi! I'm your dynamic English learning assistant!\n\n"
-                 "🔍 I can recommend fresh articles from:\n"
-                 "• National Geographic (nature & science)\n"
-                 "• BBC Science Focus (technology)\n" 
-                 "• Scientific American (advanced science)\n\n"
-                 "📚 Type 'recommend' for a random article\n"
-                 "🎯 Or try: 'recommend natgeo' for specific sources!"
-        )
-        line_bot_api.reply_message(event.reply_token, reply_message)
+        with ApiClient(configuration) as api_client:
+            line_bot_api = MessagingApi(api_client)
+            line_bot_api.reply_message_with_http_info(
+                ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[
+                        TextMessage(
+                            text="👋 Hi! I'm your dynamic English learning assistant!\n\n"
+                                 "🔍 I can recommend fresh articles from:\n"
+                                 "• National Geographic (nature & science)\n"
+                                 "• BBC Science Focus (technology)\n" 
+                                 "• Scientific American (advanced science)\n\n"
+                                 "📚 Type 'recommend' for a random article\n"
+                                 "🎯 Or try: 'recommend natgeo' for specific sources!"
+                        )
+                    ]
+                )
+            )
 
 def send_article_recommendation(event, preferred_source=None):
     """Send a dynamically scraped article recommendation"""
@@ -329,11 +338,17 @@ def send_article_recommendation(event, preferred_source=None):
         article = article_scraper.get_random_article(preferred_source)
         
         if not article:
-            error_message = TextSendMessage(
-                text="😔 Sorry, I couldn't find any articles right now.\n"
-                     "Please try again in a moment!"
-            )
-            line_bot_api.reply_message(event.reply_token, error_message)
+            with ApiClient(configuration) as api_client:
+                line_bot_api = MessagingApi(api_client)
+                line_bot_api.reply_message_with_http_info(
+                    ReplyMessageRequest(
+                        reply_token=event.reply_token,
+                        messages=[
+                            TextMessage(text="😔 Sorry, I couldn't find any articles right now.\n"
+                                           "Please try again in a moment!")
+                        ]
+                    )
+                )
             return
         
         # Estimate reading time based on title length and source
@@ -363,22 +378,35 @@ def send_article_recommendation(event, preferred_source=None):
             ]
         )
         
-        template_message = TemplateSendMessage(
-            alt_text=f"📚 Fresh Article: {article['title']} | {article['source']}",
-            template=buttons_template
-        )
-        
-        line_bot_api.reply_message(event.reply_token, template_message)
+        with ApiClient(configuration) as api_client:
+            line_bot_api = MessagingApi(api_client)
+            line_bot_api.reply_message_with_http_info(
+                ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[
+                        TemplateMessage(
+                            alt_text=f"📚 Fresh Article: {article['title']} | {article['source']}",
+                            template=buttons_template
+                        )
+                    ]
+                )
+            )
         
         print(f"✅ Sent article: {article['title']} from {article['source']}")
         
     except Exception as e:
         print(f"❌ Error in send_article_recommendation: {e}")
-        error_message = TextSendMessage(
-            text="🔧 Sorry, there was a technical issue.\n"
-                 "Please try again!"
-        )
-        line_bot_api.reply_message(event.reply_token, error_message)
+        with ApiClient(configuration) as api_client:
+            line_bot_api = MessagingApi(api_client)
+            line_bot_api.reply_message_with_http_info(
+                ReplyMessageRequest(
+                    reply_token=event.reply_token,
+                    messages=[
+                        TextMessage(text="🔧 Sorry, there was a technical issue.\n"
+                                       "Please try again!")
+                    ]
+                )
+            )
 
 @app.route("/")
 def index():
