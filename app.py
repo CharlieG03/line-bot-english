@@ -12,7 +12,7 @@ import random
 import requests
 from bs4 import BeautifulSoup
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import time
 
 # Load environment variables
@@ -42,6 +42,16 @@ class AutoArticleScraper:
         self.cache = {}
         self.cache_duration = timedelta(hours=2)
         self.website_config = self.load_website_config()
+        # Set timezone to UTC+8 (Asia/Taipei)
+        self.local_timezone = timezone(timedelta(hours=8))
+        
+    def get_local_time(self):
+        """Get current time in UTC+8"""
+        return datetime.now(self.local_timezone)
+        
+    def format_time(self, dt):
+        """Format datetime for display"""
+        return dt.strftime('%Y-%m-%d %H:%M UTC+8')
         
     def load_website_config(self):
         """Load website scraping configuration from JSON"""
@@ -102,7 +112,7 @@ class AutoArticleScraper:
         """Check if cached data is still fresh"""
         if key in self.cache:
             timestamp, _ = self.cache[key]
-            return datetime.now() - timestamp < self.cache_duration
+            return self.get_local_time() - timestamp < self.cache_duration
         return False
     
     def get_cached_articles(self, key):
@@ -115,7 +125,7 @@ class AutoArticleScraper:
     
     def cache_articles(self, key, articles):
         """Cache articles with timestamp"""
-        self.cache[key] = (datetime.now(), articles)
+        self.cache[key] = (self.get_local_time(), articles)
         print(f"💾 Cached {len(articles)} articles for {key}")
     
     def scrape_website(self, website_key, website_config):
@@ -173,7 +183,7 @@ class AutoArticleScraper:
                                         'source': website_config['name'],
                                         'category': website_config['category'],
                                         'difficulty': website_config['difficulty'],
-                                        'scraped_at': datetime.now().strftime('%Y-%m-%d %H:%M'),
+                                        'scraped_at': self.format_time(self.get_local_time()),
                                         'type': 'scraped'
                                     }
                                     articles.append(article)
@@ -296,16 +306,24 @@ def scrape_status():
             "sample_titles": [a['title'] for a in (cached_articles or [])[:3]]
         }
     
-    return {"scraping_status": status}
+    current_time = article_scraper.format_time(article_scraper.get_local_time())
+    
+    return {
+        "scraping_status": status,
+        "current_time_utc8": current_time,
+        "timezone": "UTC+8 (Asia/Taipei)"
+    }
 
 @app.route("/force-refresh")
 def force_refresh():
     """Force refresh all cached articles"""
     article_scraper.cache.clear()
     new_articles = article_scraper.get_all_articles()
+    refresh_time = article_scraper.format_time(article_scraper.get_local_time())
     
     return {
         "status": "force_refreshed",
+        "refresh_time_utc8": refresh_time,
         "articles_found": len(new_articles),
         "sample_titles": [a['title'] for a in new_articles[:5]]
     }
@@ -344,7 +362,7 @@ def handle_message(event):
             preferred_source = 'bbc'
         
         # Handle different message types
-        if any(word in user_message for word in ['recommend', 'article', 'read', 'suggest', 'help']):
+        if any(word in user_message for word in ['Recommend', 'recommend', 'article', 'Read', 'read', 'suggest', 'Help', 'help']):
             # Get auto-scraped article
             article = article_scraper.get_random_article(preferred_source)
             
@@ -391,9 +409,12 @@ def handle_message(event):
                 status = "✅ Fresh" if is_fresh else "🔄 Updating"
                 cache_info.append(f"• {website_config['name']}: {status}")
             
+            current_time = article_scraper.format_time(article_scraper.get_local_time())
+            
             reply_text = f"📊 Auto-Scraping Status:\n\n" + "\n".join(cache_info) + \
                         f"\n\n⏰ Cache refreshes every 2 hours\n" \
-                        f"🔄 Always getting fresh content!\n\n" \
+                        f"🔄 Always getting fresh content!\n" \
+                        f"🕐 Current time: {current_time}\n\n" \
                         f"Type 'recommend' for an article!"
         
         elif 'thanks' in user_message or 'thank you' in user_message:
