@@ -362,7 +362,7 @@ def handle_message(event):
             preferred_source = 'bbc'
         
         # Handle different message types
-        if any(word in user_message for word in ['Recommend', 'recommend', 'article', 'Read', 'read', 'suggest', 'Help', 'help']):
+        if any(word in user_message for word in ['Recommend', 'recommend', 'article', 'Read', 'read', 'suggest']):
             # Get auto-scraped article
             article = article_scraper.get_random_article(preferred_source)
             
@@ -387,18 +387,21 @@ def handle_message(event):
                         f"⏰ {extra_info}\n\n" \
                         f"Type 'recommend' for another! 🔄"
         
-        elif any(word in user_message for word in ['hello', 'hi', 'hey', 'start']):
+        elif any(word in user_message for word in ['Hello', 'Hi', 'Hey', 'Start', 'hello', 'hi', 'hey', 'start']):
             websites = article_scraper.website_config.get('websites', {})
             website_names = [config['name'] for config in websites.values()]
             
             reply_text = f"👋 Hello! I'm your auto-scraping English bot!\n\n" \
-                        f"🔄 I automatically find fresh articles from:\n"
+                        f"🔄 I automatically find fresh articles from:\n\n" \
+                        f"🆕 Type 'Recommend' or 'recommend' for a random article! \n" \
+                        f"❓ Type 'Help' or 'help' for more commands! \n\n" 
             
             for name in website_names:
                 reply_text += f"• {name} 🌐\n"
             
             reply_text += f"\n⏰ Articles refresh every 2 hours!\n\n" \
-                         f"Type 'recommend' for a fresh article! 📚"
+                         f"Type 'recommend' for a fresh article! 📚\n\n" \
+                         f"Contact Charlie for any issues! 🤖"
         
         elif 'status' in user_message or 'cache' in user_message:
             websites = article_scraper.website_config.get('websites', {})
@@ -423,6 +426,15 @@ def handle_message(event):
                         f"📚 Perfect for improving your English reading skills.\n\n" \
                         f"Type 'recommend' anytime! 🤖"
         
+        elif 'Help' in user_message or 'help' in user_message:
+            reply_text = f"I see: '{event.message.text}'\n\n" \
+                        f"🔄 Auto-Scraping Commands:\n" \
+                        f"• 'Recommend' or 'recommend' - fresh article 🆕\n" \
+                        f"• '+ natgeo' - National Geographic 🌍\n" \
+                        f"• 'status' - scraping status 📊\n" \
+                        f"• 'hello' - greeting 👋\n\n" \
+                        f"I auto-update content every 2 hours! 🤖"
+
         else:
             reply_text = f"I see: '{event.message.text}'\n\n" \
                         f"🔄 Auto-Scraping Commands:\n" \
