@@ -1,0 +1,86 @@
+{
+  "websites": {
+    "national_geographic": {
+      "name": "National Geographic",
+      "base_url": "https://www.nationalgeographic.com",
+      "section_urls": [
+        "https://www.nationalgeographic.com/science",
+        "https://www.nationalgeographic.com/environment",
+        "https://www.nationalgeographic.com/animals"
+      ],
+      "article_selectors": {
+        "link_contains": "/article/",
+        "title_tags": ["h2", "h3", "h4"],
+        "min_title_length": 20,
+        "max_title_length": 100
+      },
+      "category": "Science & Nature",
+      "difficulty": "Intermediate to Advanced",
+      "keywords": ["natgeo", "national geographic", "nature", "science", "animals"]
+    },
+    "bbc_science": {
+      "name": "BBC Science Focus", 
+      "base_url": "https://www.sciencefocus.com",
+      "section_urls": [
+        "https://www.sciencefocus.com/future-technology",
+        "https://www.sciencefocus.com/planet-earth",
+        "https://www.sciencefocus.com/science"
+      ],
+      "article_selectors": {
+        "link_contains": ["/future-technology/", "/planet-earth/", "/science/"],
+        "title_tags": ["h2", "h3", "span"],
+        "min_title_length": 15,
+        "max_title_length": 80
+      },
+      "category": "Science & Technology",
+      "difficulty": "Intermediate",
+      "keywords": ["bbc", "science focus", "technology", "future"]
+    },
+    "scientific_american": {
+      "name": "Scientific American",
+      "base_url": "https://www.scientificamerican.com", 
+      "section_urls": [
+        "https://www.scientificamerican.com/artificial-intelligence/",
+        "https://www.scientificamerican.com/technology/",
+        "https://www.scientificamerican.com/environment/"
+      ],
+      "article_selectors": {
+        "link_contains": "/article/",
+        "title_tags": ["h2", "h3", "h4"],
+        "min_title_length": 20,
+        "max_title_length": 100
+      },
+      "category": "Advanced Science",
+      "difficulty": "Advanced",
+      "keywords": ["scientific american", "sciam", "ai", "artificial intelligence", "research"]
+    },
+    "smithsonian": {
+      "name": "Smithsonian Magazine",
+      "base_url": "https://www.smithsonianmag.com",
+      "section_urls": [
+        "https://www.smithsonianmag.com/science-nature/",
+        "https://www.smithsonianmag.com/innovation/"
+      ],
+      "article_selectors": {
+        "link_contains": ["/science-nature/", "/innovation/"],
+        "title_tags": ["h2", "h3"],
+        "min_title_length": 20,
+        "max_title_length": 90
+      },
+      "category": "Science & History",
+      "difficulty": "Intermediate",
+      "keywords": ["smithsonian", "museum", "history", "innovation"]
+    }
+  },
+  "scraping_settings": {
+    "cache_duration_hours": 2,
+    "max_articles_per_source": 10,
+    "request_timeout": 10,
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+  },
+  "reading_time_estimates": {
+    "Advanced": "12-18 minutes",
+    "Intermediate": "8-12 minutes", 
+    "Beginner": "5-8 minutes"
+  }
+}
