@@ -10,12 +10,12 @@
       ],
       "article_selectors": {
         "link_contains": "/article/",
-        "title_tags": ["h2", "h3", "h4"],
+        "title_tags": ["h2", "h3", "h4", "span"],
         "min_title_length": 20,
         "max_title_length": 100
       },
       "category": "Science & Nature",
-      "difficulty": "Intermediate to Advanced",
+      "difficulty": "Intermediate",
       "keywords": ["natgeo", "national geographic", "nature", "science", "animals"]
     },
     "bbc_science": {
@@ -28,31 +28,13 @@
       ],
       "article_selectors": {
         "link_contains": ["/future-technology/", "/planet-earth/", "/science/"],
-        "title_tags": ["h2", "h3", "span"],
+        "title_tags": ["h2", "h3", "h4"],
         "min_title_length": 15,
         "max_title_length": 80
       },
       "category": "Science & Technology",
       "difficulty": "Intermediate",
       "keywords": ["bbc", "science focus", "technology", "future"]
-    },
-    "scientific_american": {
-      "name": "Scientific American",
-      "base_url": "https://www.scientificamerican.com", 
-      "section_urls": [
-        "https://www.scientificamerican.com/artificial-intelligence/",
-        "https://www.scientificamerican.com/technology/",
-        "https://www.scientificamerican.com/environment/"
-      ],
-      "article_selectors": {
-        "link_contains": "/article/",
-        "title_tags": ["h2", "h3", "h4"],
-        "min_title_length": 20,
-        "max_title_length": 100
-      },
-      "category": "Advanced Science",
-      "difficulty": "Advanced",
-      "keywords": ["scientific american", "sciam", "ai", "artificial intelligence", "research"]
     },
     "smithsonian": {
       "name": "Smithsonian Magazine",
@@ -70,13 +52,32 @@
       "category": "Science & History",
       "difficulty": "Intermediate",
       "keywords": ["smithsonian", "museum", "history", "innovation"]
+    },
+    "new_scientist": {
+      "name": "New Scientist",
+      "base_url": "https://www.newscientist.com",
+      "section_urls": [
+        "https://www.newscientist.com/subject/technology/",
+        "https://www.newscientist.com/subject/environment/"
+      ],
+      "article_selectors": {
+        "link_contains": "/article/",
+        "title_tags": ["h3", "h2"],
+        "min_title_length": 25,
+        "max_title_length": 85
+      },
+      "category": "Science News",
+      "difficulty": "Advanced",
+      "keywords": ["new scientist", "science news", "research"]
     }
   },
   "scraping_settings": {
     "cache_duration_hours": 2,
-    "max_articles_per_source": 10,
-    "request_timeout": 10,
-    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    "max_articles_per_source": 8,
+    "request_timeout": 8,
+    "delay_between_sections": 1,
+    "delay_between_websites": 2,
+    "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
   },
   "reading_time_estimates": {
     "Advanced": "12-18 minutes",

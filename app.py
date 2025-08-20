@@ -11,8 +11,9 @@ from dotenv import load_dotenv
 import random
 import requests
 from bs4 import BeautifulSoup
-import time
+import json
 from datetime import datetime, timedelta
+import time
 
 # Load environment variables
 load_dotenv()
@@ -31,54 +32,71 @@ if not CHANNEL_ACCESS_TOKEN or not CHANNEL_SECRET:
 configuration = Configuration(access_token=CHANNEL_ACCESS_TOKEN)
 handler = WebhookHandler(CHANNEL_SECRET)
 
-print("✅ Smart Dynamic Bot loaded successfully!")
+print("✅ Auto-Scraping Bot loaded successfully!")
 
-# RELIABLE FALLBACK ARTICLES (always work)
-FALLBACK_ARTICLES = [
-    {
-        'title': 'Climate Change and Wildlife Conservation',
-        'url': 'https://www.nationalgeographic.com/environment',
-        'source': 'National Geographic',
-        'category': 'Environment',
-        'type': 'fallback'
-    },
-    {
-        'title': 'The Future of Artificial Intelligence',
-        'url': 'https://www.scientificamerican.com/artificial-intelligence/',
-        'source': 'Scientific American',
-        'category': 'Technology',
-        'type': 'fallback'
-    },
-    {
-        'title': 'Space Exploration Breakthroughs',
-        'url': 'https://www.nationalgeographic.com/science/space',
-        'source': 'National Geographic',
-        'category': 'Science',
-        'type': 'fallback'
-    },
-    {
-        'title': 'Ocean Conservation Efforts',
-        'url': 'https://www.nationalgeographic.com/environment/article/oceans',
-        'source': 'National Geographic',
-        'category': 'Environment',
-        'type': 'fallback'
-    },
-    {
-        'title': 'Renewable Energy Innovations',
-        'url': 'https://www.sciencefocus.com/future-technology',
-        'source': 'BBC Science Focus',
-        'category': 'Technology',
-        'type': 'fallback'
-    }
-]
-
-class SmartArticleScraper:
+class AutoArticleScraper:
     def __init__(self):
         self.headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
         }
         self.cache = {}
-        self.cache_duration = timedelta(hours=3)  # Cache for 3 hours
+        self.cache_duration = timedelta(hours=2)
+        self.website_config = self.load_website_config()
+        
+    def load_website_config(self):
+        """Load website scraping configuration from JSON"""
+        try:
+            with open('website_config.json', 'r', encoding='utf-8') as file:
+                config = json.load(file)
+                print(f"✅ Loaded {len(config['websites'])} website configurations")
+                return config
+        except FileNotFoundError:
+            print("⚠️ website_config.json not found, using default config")
+            return self.get_default_config()
+        except Exception as e:
+            print(f"❌ Error loading config: {e}")
+            return self.get_default_config()
+    
+    def get_default_config(self):
+        """Default configuration if JSON file is missing"""
+        return {
+            "websites": {
+                "national_geographic": {
+                    "name": "National Geographic",
+                    "base_url": "https://www.nationalgeographic.com",
+                    "section_urls": [
+                        "https://www.nationalgeographic.com/science",
+                        "https://www.nationalgeographic.com/environment"
+                    ],
+                    "article_selectors": {
+                        "link_contains": "/article/",
+                        "title_tags": ["h2", "h3", "h4"],
+                        "min_title_length": 20,
+                        "max_title_length": 100
+                    },
+                    "category": "Science & Nature",
+                    "difficulty": "Intermediate",
+                    "keywords": ["natgeo", "national geographic", "nature"]
+                },
+                "bbc_science": {
+                    "name": "BBC Science Focus",
+                    "base_url": "https://www.sciencefocus.com",
+                    "section_urls": [
+                        "https://www.sciencefocus.com/future-technology",
+                        "https://www.sciencefocus.com/planet-earth"
+                    ],
+                    "article_selectors": {
+                        "link_contains": ["/future-technology/", "/planet-earth/"],
+                        "title_tags": ["h2", "h3"],
+                        "min_title_length": 15,
+                        "max_title_length": 80
+                    },
+                    "category": "Science & Technology",
+                    "difficulty": "Intermediate",
+                    "keywords": ["bbc", "science focus", "technology"]
+                }
+            }
+        }
     
     def is_cache_fresh(self, key):
         """Check if cached data is still fresh"""
@@ -100,105 +118,196 @@ class SmartArticleScraper:
         self.cache[key] = (datetime.now(), articles)
         print(f"💾 Cached {len(articles)} articles for {key}")
     
-    def try_scrape_natgeo(self):
-        """Try to scrape National Geographic (with timeout)"""
-        cached = self.get_cached_articles('natgeo')
+    def scrape_website(self, website_key, website_config):
+        """Scrape articles from a specific website based on its config"""
+        cached = self.get_cached_articles(website_key)
         if cached:
             return cached
         
         try:
-            print("🔍 Trying to scrape National Geographic...")
-            url = "https://www.nationalgeographic.com/science"
-            
-            # Quick timeout to avoid hanging
-            response = requests.get(url, headers=self.headers, timeout=5)
-            soup = BeautifulSoup(response.content, 'html.parser')
-            
+            print(f"🔍 Scraping {website_config['name']}...")
             articles = []
-            links = soup.find_all('a', href=True)
             
-            for link in links[:20]:  # Only check first 20 links
-                href = link.get('href')
-                if href and '/article/' in href and href.startswith('/'):
-                    title_elem = link.find(['h2', 'h3', 'span', 'div'])
-                    if title_elem:
-                        title = title_elem.get_text().strip()
-                        if 20 <= len(title) <= 80:  # Reasonable title length
-                            full_url = f"https://www.nationalgeographic.com{href}"
+            # Try each section URL
+            for section_url in website_config['section_urls']:
+                try:
+                    response = requests.get(section_url, headers=self.headers, timeout=8)
+                    soup = BeautifulSoup(response.content, 'html.parser')
+                    
+                    # Find article links
+                    links = soup.find_all('a', href=True)
+                    
+                    for link in links[:30]:  # Check first 30 links per section
+                        href = link.get('href')
+                        
+                        # Check if link matches our criteria
+                        link_contains = website_config['article_selectors']['link_contains']
+                        if isinstance(link_contains, list):
+                            link_match = any(pattern in href for pattern in link_contains if href)
+                        else:
+                            link_match = link_contains in href if href else False
+                        
+                        if link_match:
+                            # Find title in the link
+                            title_tags = website_config['article_selectors']['title_tags']
+                            title_elem = link.find(title_tags)
                             
-                            article = {
-                                'title': title,
-                                'url': full_url,
-                                'source': 'National Geographic',
-                                'category': 'Science & Nature',
-                                'type': 'scraped'
-                            }
-                            articles.append(article)
-                            
-                            if len(articles) >= 5:  # Limit to 5 articles
-                                break
+                            if title_elem:
+                                title = title_elem.get_text().strip()
+                                min_len = website_config['article_selectors']['min_title_length']
+                                max_len = website_config['article_selectors']['max_title_length']
+                                
+                                # Check title length
+                                if min_len <= len(title) <= max_len:
+                                    # Build full URL
+                                    if href.startswith('http'):
+                                        full_url = href
+                                    elif href.startswith('/'):
+                                        full_url = website_config['base_url'] + href
+                                    else:
+                                        full_url = website_config['base_url'] + '/' + href
+                                    
+                                    article = {
+                                        'title': title,
+                                        'url': full_url,
+                                        'source': website_config['name'],
+                                        'category': website_config['category'],
+                                        'difficulty': website_config['difficulty'],
+                                        'scraped_at': datetime.now().strftime('%Y-%m-%d %H:%M'),
+                                        'type': 'scraped'
+                                    }
+                                    articles.append(article)
+                        
+                        # Limit articles per website
+                        if len(articles) >= 8:
+                            break
+                    
+                    # Small delay between sections
+                    time.sleep(1)
+                    
+                except Exception as e:
+                    print(f"⚠️ Error scraping section {section_url}: {e}")
+                    continue
             
-            if articles:
-                # Remove duplicates
-                seen_urls = set()
-                unique_articles = []
-                for article in articles:
-                    if article['url'] not in seen_urls:
-                        seen_urls.add(article['url'])
-                        unique_articles.append(article)
-                
-                self.cache_articles('natgeo', unique_articles)
-                print(f"✅ Scraped {len(unique_articles)} new articles from National Geographic")
+            # Remove duplicates
+            seen_urls = set()
+            unique_articles = []
+            for article in articles:
+                if article['url'] not in seen_urls:
+                    seen_urls.add(article['url'])
+                    unique_articles.append(article)
+            
+            if unique_articles:
+                self.cache_articles(website_key, unique_articles)
+                print(f"✅ Scraped {len(unique_articles)} articles from {website_config['name']}")
                 return unique_articles
             
         except Exception as e:
-            print(f"⚠️ Could not scrape National Geographic: {e}")
+            print(f"❌ Error scraping {website_config['name']}: {e}")
         
-        return None
+        return []
     
-    def get_smart_article(self, preferred_source=None):
-        """Get article with smart fallback strategy"""
+    def get_all_articles(self):
+        """Get articles from all configured websites"""
+        all_articles = []
         
-        # Try dynamic scraping first (if user wants it)
-        if preferred_source == 'natgeo' or random.random() < 0.7:  # 70% chance to try scraping
-            scraped_articles = self.try_scrape_natgeo()
-            if scraped_articles:
-                article = random.choice(scraped_articles)
-                print(f"📰 Returning fresh scraped article: {article['title']}")
-                return article
+        websites = self.website_config.get('websites', {})
+        for website_key, website_config in websites.items():
+            articles = self.scrape_website(website_key, website_config)
+            all_articles.extend(articles)
+            
+            # Small delay between websites
+            time.sleep(2)
         
-        # Fallback to reliable articles
-        article = random.choice(FALLBACK_ARTICLES)
-        print(f"📚 Returning reliable fallback article: {article['title']}")
-        return article
+        return all_articles
+    
+    def get_articles_by_source(self, preferred_source):
+        """Get articles from a specific source"""
+        websites = self.website_config.get('websites', {})
+        
+        # Find matching website
+        for website_key, website_config in websites.items():
+            keywords = website_config.get('keywords', [])
+            if any(keyword in preferred_source.lower() for keyword in keywords):
+                articles = self.scrape_website(website_key, website_config)
+                return articles
+        
+        return []
+    
+    def get_random_article(self, preferred_source=None):
+        """Get a random article, optionally from preferred source"""
+        if preferred_source:
+            articles = self.get_articles_by_source(preferred_source)
+            if articles:
+                return random.choice(articles)
+        
+        # Get from all sources
+        all_articles = self.get_all_articles()
+        
+        if all_articles:
+            return random.choice(all_articles)
+        
+        # Ultimate fallback
+        return {
+            'title': 'English Learning: The Science of Reading',
+            'url': 'https://learnenglish.britishcouncil.org/skills/reading',
+            'source': 'British Council',
+            'category': 'Language Learning',
+            'difficulty': 'All Levels',
+            'type': 'fallback'
+        }
 
-# Initialize smart scraper
-smart_scraper = SmartArticleScraper()
+# Initialize scraper
+article_scraper = AutoArticleScraper()
 
 @app.route("/")
 def index():
-    return "🤖 Smart Dynamic Bot is running! 🔄"
+    return "🤖 Auto-Scraping Bot is running! 🔄 Articles auto-updated every 2 hours!"
 
 @app.route("/test")
 def test():
-    """Test endpoint with cache status"""
-    natgeo_fresh = smart_scraper.is_cache_fresh('natgeo')
+    """Test endpoint with scraping status"""
+    websites = article_scraper.website_config.get('websites', {})
+    cache_status = {}
+    
+    for website_key in websites.keys():
+        cache_status[website_key] = article_scraper.is_cache_fresh(website_key)
+    
     return {
         "status": "ok",
-        "bot_type": "smart_dynamic",
-        "fallback_articles": len(FALLBACK_ARTICLES),
-        "natgeo_cache_fresh": natgeo_fresh,
-        "cache_duration_hours": smart_scraper.cache_duration.total_seconds() / 3600
+        "bot_type": "auto_scraping",
+        "websites_configured": len(websites),
+        "cache_status": cache_status,
+        "cache_duration_hours": article_scraper.cache_duration.total_seconds() / 3600
     }
 
-@app.route("/force-scrape")
-def force_scrape():
-    """Force scrape for testing"""
-    articles = smart_scraper.try_scrape_natgeo()
+@app.route("/scrape-status")
+def scrape_status():
+    """Check current scraping status and cached articles"""
+    websites = article_scraper.website_config.get('websites', {})
+    status = {}
+    
+    for website_key, website_config in websites.items():
+        cached_articles = article_scraper.get_cached_articles(website_key)
+        status[website_key] = {
+            "name": website_config['name'],
+            "cache_fresh": article_scraper.is_cache_fresh(website_key),
+            "cached_articles": len(cached_articles) if cached_articles else 0,
+            "sample_titles": [a['title'] for a in (cached_articles or [])[:3]]
+        }
+    
+    return {"scraping_status": status}
+
+@app.route("/force-refresh")
+def force_refresh():
+    """Force refresh all cached articles"""
+    article_scraper.cache.clear()
+    new_articles = article_scraper.get_all_articles()
+    
     return {
-        "status": "scrape_attempted",
-        "articles_found": len(articles) if articles else 0,
-        "sample_titles": [a['title'] for a in (articles or [])[:3]]
+        "status": "force_refreshed",
+        "articles_found": len(new_articles),
+        "sample_titles": [a['title'] for a in new_articles[:5]]
     }
 
 @app.route("/callback", methods=['POST'])
@@ -222,59 +331,87 @@ def callback():
 
 @handler.add(MessageEvent, message=TextMessageContent)
 def handle_message(event):
-    """Handle incoming messages with smart article recommendations"""
+    """Handle messages with auto-scraped articles"""
     try:
         user_message = event.message.text.lower().strip()
         print(f"💬 User: {user_message}")
         
-        # Check for source preferences
+        # Detect source preferences
         preferred_source = None
-        if 'natgeo' in user_message or 'national geographic' in user_message:
-            preferred_source = 'natgeo'
+        if any(word in user_message for word in ['natgeo', 'national geographic', 'nature']):
+            preferred_source = 'national geographic'
+        elif any(word in user_message for word in ['bbc', 'science focus', 'technology']):
+            preferred_source = 'bbc'
         
         # Handle different message types
-        if any(word in user_message for word in ['recommend', 'article', 'read', 'help', 'suggest']):
-            # Get smart article recommendation
-            article = smart_scraper.get_smart_article(preferred_source)
+        if any(word in user_message for word in ['recommend', 'article', 'read', 'suggest', 'help']):
+            # Get auto-scraped article
+            article = article_scraper.get_random_article(preferred_source)
             
-            # Create response with article info
-            freshness = "🆕 Fresh" if article.get('type') == 'scraped' else "📚 Curated"
+            # Determine freshness
+            article_type = article.get('type', 'unknown')
+            if article_type == 'scraped':
+                freshness_icon = "🆕"
+                freshness_text = "Fresh"
+                scraped_time = article.get('scraped_at', 'recently')
+                extra_info = f"Scraped: {scraped_time}"
+            else:
+                freshness_icon = "📚"
+                freshness_text = "Reliable"
+                extra_info = "Always available"
             
-            reply_text = f"{freshness} article for you!\n\n" \
+            reply_text = f"{freshness_icon} {freshness_text} article for you!\n\n" \
                         f"📰 {article['title']}\n\n" \
                         f"🔗 {article['url']}\n\n" \
                         f"📝 Source: {article['source']}\n" \
-                        f"📂 Category: {article['category']}\n\n" \
-                        f"Type 'recommend' for another article! 🔄"
+                        f"📂 Category: {article['category']}\n" \
+                        f"🎯 Level: {article['difficulty']}\n" \
+                        f"⏰ {extra_info}\n\n" \
+                        f"Type 'recommend' for another! 🔄"
         
         elif any(word in user_message for word in ['hello', 'hi', 'hey', 'start']):
-            reply_text = "👋 Hello! I'm your smart English learning assistant!\n\n" \
-                        "I find articles from top sources:\n" \
-                        "• National Geographic 🌍\n" \
-                        "• Scientific American 🔬\n" \
-                        "• BBC Science Focus 🚀\n\n" \
-                        "I mix fresh content with reliable classics!\n\n" \
-                        "Type 'recommend' to get started! 📚"
+            websites = article_scraper.website_config.get('websites', {})
+            website_names = [config['name'] for config in websites.values()]
+            
+            reply_text = f"👋 Hello! I'm your auto-scraping English bot!\n\n" \
+                        f"🔄 I automatically find fresh articles from:\n"
+            
+            for name in website_names:
+                reply_text += f"• {name} 🌐\n"
+            
+            reply_text += f"\n⏰ Articles refresh every 2 hours!\n\n" \
+                         f"Type 'recommend' for a fresh article! 📚"
         
-        elif 'fresh' in user_message or 'new' in user_message:
-            reply_text = "🆕 I'll try to find you a fresh article!\n\n" \
-                        "I scrape content from National Geographic and other sources every few hours.\n\n" \
-                        "Type 'recommend natgeo' for fresh Nat Geo content! 🌍"
+        elif 'status' in user_message or 'cache' in user_message:
+            websites = article_scraper.website_config.get('websites', {})
+            cache_info = []
+            
+            for website_key, website_config in websites.items():
+                is_fresh = article_scraper.is_cache_fresh(website_key)
+                status = "✅ Fresh" if is_fresh else "🔄 Updating"
+                cache_info.append(f"• {website_config['name']}: {status}")
+            
+            reply_text = f"📊 Auto-Scraping Status:\n\n" + "\n".join(cache_info) + \
+                        f"\n\n⏰ Cache refreshes every 2 hours\n" \
+                        f"🔄 Always getting fresh content!\n\n" \
+                        f"Type 'recommend' for an article!"
         
         elif 'thanks' in user_message or 'thank you' in user_message:
-            reply_text = "You're very welcome! 😊\n\n" \
-                        "Enjoy reading! The best way to improve English is through consistent practice.\n\n" \
-                        "Type 'recommend' anytime for more articles! 📖"
+            reply_text = f"You're welcome! 😊\n\n" \
+                        f"🔄 I'm constantly finding fresh articles for you!\n" \
+                        f"📚 Perfect for improving your English reading skills.\n\n" \
+                        f"Type 'recommend' anytime! 🤖"
         
         else:
-            reply_text = f"I see you said: '{event.message.text}'\n\n" \
-                        "Here's what I can do:\n" \
-                        "• 'recommend' - smart article suggestion 🧠\n" \
-                        "• 'recommend natgeo' - fresh Nat Geo content 🌍\n" \
-                        "• 'hello' - friendly greeting 👋\n\n" \
-                        "I'm your smart learning assistant! 🤖✨"
+            reply_text = f"I see: '{event.message.text}'\n\n" \
+                        f"🔄 Auto-Scraping Commands:\n" \
+                        f"• 'recommend' - fresh article 🆕\n" \
+                        f"• 'recommend natgeo' - National Geographic 🌍\n" \
+                        f"• 'status' - scraping status 📊\n" \
+                        f"• 'hello' - greeting 👋\n\n" \
+                        f"I auto-update content every 2 hours! 🤖"
         
-        # Send response using working format
+        # Send response
         with ApiClient(configuration) as api_client:
             line_bot_api = MessagingApi(api_client)
             request_body = ReplyMessageRequest(
@@ -283,18 +420,17 @@ def handle_message(event):
             )
             line_bot_api.reply_message(request_body)
         
-        print("✅ Smart message sent successfully")
+        print("✅ Auto-scraping response sent")
         
     except Exception as e:
         print(f"❌ Handler error: {e}")
         
-        # Reliable error message
         try:
             with ApiClient(configuration) as api_client:
                 line_bot_api = MessagingApi(api_client)
                 error_request = ReplyMessageRequest(
                     reply_token=event.reply_token,
-                    messages=[TextMessage(text="Oops! Had a small hiccup, but I'm still here! 🤖\n\nTry 'recommend' again!")]
+                    messages=[TextMessage(text="🔧 Small hiccup in auto-scraping, but I'm here!\n\nTry 'recommend' again! 🤖")]
                 )
                 line_bot_api.reply_message(error_request)
         except:
